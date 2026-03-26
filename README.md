@@ -123,6 +123,7 @@ This is the core governance file for Negotiator. It defines:
 | `bystander_analysis_consent` | Explicit acknowledgment required for analyzing non-consenting people |
 | `no_diagnostic_labels` | Never diagnose anxiety, narcissism, etc. — patterns, not pathology |
 | `ambient_never_persisted` | Speech buffer lives in RAM only — never written to disk |
+| `signals_only_no_interpretation` | Always surface behavioral signals, never interpret emotional or symbolic meaning |
 
 **State tracking** — `session_trust`, `signals_surfaced`, and `false_positive_dismissals` are tracked at runtime by the governance engine.
 
