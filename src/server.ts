@@ -46,6 +46,22 @@ import {
   type SignalClassification,
 } from './signal-classifier';
 
+import {
+  type GovernanceGate,
+  type GovernanceState,
+  type NegotiatorJournal,
+  type SignalRecord,
+  EMPTY_JOURNAL,
+  WORDS_GLANCE,
+  WORDS_DEPTH,
+  WORDS_FOLLOWUP,
+  CLASSIFY_DELAY_MS,
+  trustToGate,
+  gateAdjustments,
+  followThroughRate,
+  bestSignalType,
+} from './governance';
+
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -62,14 +78,7 @@ const MAX_AMBIENT_TOKENS_ESTIMATE = 700;
 const FOLLOW_UP_WINDOW_MS = 30_000;
 const RECENCY_BOOST_SECONDS = 15;
 
-/** Delay after speech before classifying signals (seconds of silence) */
-const CLASSIFY_DELAY_MS = 3_000;
 const MIN_CLASSIFY_WORDS = 8;
-
-/** Word limits — nothing exceeds 50 words on the glasses display */
-const WORDS_GLANCE = 15;
-const WORDS_DEPTH = 50;
-const WORDS_FOLLOWUP = 35;
 
 /** Pattern to detect help request */
 const HELP_PATTERN = /^(?:help|show\s+me\s+commands|how\s+does\s+this\s+work)\b/i;
@@ -218,22 +227,9 @@ function checkOutputContent(text: string, world: WorldDefinition): { safe: boole
 //   3. Gate classification determines behavior adjustments
 //   4. Adjustments are invisible — no UI, just behavioral changes
 
-type GovernanceGate = 'ACTIVE' | 'DEGRADED' | 'SUSPENDED' | 'REVOKED';
-
-interface GovernanceState {
-  sessionTrust: number;
-  gate: GovernanceGate;
-}
-
 /**
  * Evaluate the current governance state by feeding app metrics into
  * the world's rule engine. Returns the new trust score and gate.
- *
- * The world file defines rules like:
- *   "When false_positive_dismissals > 5 → session_trust *= 0.85"
- *   "When ai_calls_made > 10 AND governance_blocks == 0 → session_trust *= 1.05"
- *
- * We feed real metrics, the engine computes trust, we read the gate.
  */
 function evaluateGovernanceState(
   world: WorldDefinition | null,
@@ -254,41 +250,9 @@ function evaluateGovernanceState(
     });
 
     const newTrust = (result.finalState.session_trust as number) ?? currentTrust;
-
-    // Map trust to gate (from negotiator-app.nv-world.md)
-    let gate: GovernanceGate = 'ACTIVE';
-    if (newTrust <= 10) gate = 'REVOKED';
-    else if (newTrust <= 30) gate = 'SUSPENDED';
-    else if (newTrust < 70) gate = 'DEGRADED';
-
-    return { sessionTrust: newTrust, gate };
+    return { sessionTrust: newTrust, gate: trustToGate(newTrust) };
   } catch {
-    // If simulation fails, don't crash — stay at current state
     return { sessionTrust: currentTrust, gate: currentTrust >= 70 ? 'ACTIVE' : 'DEGRADED' };
-  }
-}
-
-/**
- * Apply invisible behavioral adjustments based on the current gate.
- * The user never sees these — they just feel the app adjust.
- */
-function gateAdjustments(gate: GovernanceGate): {
-  maxWords: number;
-  proactiveEnabled: boolean;
-  classifyDelayMs: number;
-} {
-  switch (gate) {
-    case 'ACTIVE':
-      return { maxWords: WORDS_DEPTH, proactiveEnabled: true, classifyDelayMs: CLASSIFY_DELAY_MS };
-    case 'DEGRADED':
-      // Shorter responses, slower proactive, still functional
-      return { maxWords: Math.round(WORDS_DEPTH * 0.6), proactiveEnabled: true, classifyDelayMs: CLASSIFY_DELAY_MS * 2 };
-    case 'SUSPENDED':
-      // Minimal responses, no proactive
-      return { maxWords: WORDS_GLANCE, proactiveEnabled: false, classifyDelayMs: Infinity };
-    case 'REVOKED':
-      // Nothing works
-      return { maxWords: 0, proactiveEnabled: false, classifyDelayMs: Infinity };
   }
 }
 
@@ -341,52 +305,6 @@ function getAmbientContext(buffer: AmbientBuffer): string {
 // ─── Journal (SimpleStorage) ─────────────────────────────────────────────────
 // Persists across sessions. Tracks signal effectiveness over time.
 // The feedback loop: signal → user acted (follow-up/redirect) or didn't (dismiss/ignore)
-
-interface SignalRecord {
-  type: string;      // 'inconsistency' | 'deflection' | etc.
-  acted: boolean;    // did the user follow up or redirect?
-  dismissed: boolean; // did the user long-press dismiss?
-}
-
-interface NegotiatorJournal {
-  totalSignals: number;
-  totalDismissals: number;
-  totalFollowThroughs: number;
-  totalSessions: number;
-  lastSessionDate: string;
-  /** Rolling window of recent signals for effectiveness tracking */
-  recentSignals: SignalRecord[];
-  /** Signal type → { surfaced, acted, dismissed } for pattern learning */
-  signalEffectiveness: Record<string, { surfaced: number; acted: number; dismissed: number }>;
-}
-
-const EMPTY_JOURNAL: NegotiatorJournal = {
-  totalSignals: 0,
-  totalDismissals: 0,
-  totalFollowThroughs: 0,
-  totalSessions: 0,
-  lastSessionDate: '',
-  recentSignals: [],
-  signalEffectiveness: {},
-};
-
-/** Calculate follow-through rate (0-100) */
-function followThroughRate(journal: NegotiatorJournal): number {
-  if (journal.totalSignals === 0) return 0;
-  return Math.round((journal.totalFollowThroughs / journal.totalSignals) * 100);
-}
-
-/** Get the user's most effective signal type */
-function bestSignalType(journal: NegotiatorJournal): string | null {
-  let best: string | null = null;
-  let bestRate = 0;
-  for (const [type, stats] of Object.entries(journal.signalEffectiveness)) {
-    if (stats.surfaced < 3) continue; // need enough data
-    const rate = stats.acted / stats.surfaced;
-    if (rate > bestRate) { bestRate = rate; best = type; }
-  }
-  return best;
-}
 
 async function loadJournal(session: AppSession): Promise<NegotiatorJournal> {
   try {

@@ -1,0 +1,39 @@
+name: CI
+
+# Disabled until @mentra/sdk@3.0.0 is published to npm.
+# Tests run locally: npx vitest run (all pass, ~400ms, no SDK dependency).
+# Re-enable by uncommenting the triggers below.
+
+# on:
+#   push:
+#   pull_request:
+
+on: workflow_dispatch
+
+jobs:
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+      - run: npx vitest run
+
+  build:
+    name: Full Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: docker build .
