@@ -798,10 +798,4 @@ const app = new NegotiatorApp({
 });
 
 app.start();
-
-// Health endpoint for Docker healthcheck and load balancer probes
-app.registerRoute('GET', '/health', (_req, res) => {
-  res.json({ status: 'ok', version: '1.0.0' });
-});
-
 console.log(`[Negotiator] Running on port ${Number(process.env.PORT) || 3002}`);
