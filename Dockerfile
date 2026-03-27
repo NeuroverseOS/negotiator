@@ -2,7 +2,7 @@ FROM node:20-slim AS build
 RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json ./
-RUN npm install --production=false && node -e "const p=JSON.parse(require('fs').readFileSync('./node_modules/neuroverseos-governance/package.json','utf8')); delete p.exports; require('fs').writeFileSync('./node_modules/neuroverseos-governance/package.json', JSON.stringify(p,null,2))"
+RUN npm install --production=false
 COPY . .
 
 FROM node:20-slim
