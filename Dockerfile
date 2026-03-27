@@ -2,8 +2,7 @@ FROM node:20-slim AS build
 RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json ./
-RUN npm install --production=false
-RUN node -e "const p=require('./node_modules/neuroverseos-governance/package.json'); delete p.exports; require('fs').writeFileSync('./node_modules/neuroverseos-governance/package.json', JSON.stringify(p,null,2))"
+RUN npm install --production=false && node -e "const p=JSON.parse(require('fs').readFileSync('./node_modules/neuroverseos-governance/package.json','utf8')); delete p.exports; require('fs').writeFileSync('./node_modules/neuroverseos-governance/package.json', JSON.stringify(p,null,2))"
 COPY . .
 
 FROM node:20-slim
@@ -14,5 +13,5 @@ COPY --from=build /app/node_modules ./node_modules
 COPY package.json tsconfig.json ./
 USER negotiator
 EXPOSE 3002
-HEALTHCHECK --interval=30s --timeout=5s CMD node -e "fetch('http://localhost:3002/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s CMD node -e "fetch('http://localhost:3002/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
 CMD ["npx", "tsx", "src/server.ts"]
