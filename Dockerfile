@@ -13,5 +13,6 @@ COPY --from=build /app/node_modules ./node_modules
 COPY package.json tsconfig.json ./
 USER negotiator
 EXPOSE 3002
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s CMD bun -e "fetch('http://localhost:3002/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+EXPOSE 3003
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s CMD bun -e "fetch('http://localhost:3003/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
 CMD ["bun", "run", "src/server.ts"]
