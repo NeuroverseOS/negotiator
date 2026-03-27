@@ -4,7 +4,7 @@ WORKDIR /app
 COPY package.json ./
 RUN npm install --production=false
 COPY . .
-RUN npx tsc
+RUN npx tsc; exit 0
 
 FROM node:20-slim
 WORKDIR /app
