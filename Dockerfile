@@ -3,7 +3,6 @@ RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json ./
 RUN npm install --production=false
-# Patch governance package: remove exports field so Node resolves subpaths directly
 RUN node -e "const p=require('./node_modules/neuroverseos-governance/package.json'); delete p.exports; require('fs').writeFileSync('./node_modules/neuroverseos-governance/package.json', JSON.stringify(p,null,2))"
 COPY . .
 
