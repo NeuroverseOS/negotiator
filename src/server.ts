@@ -44,7 +44,7 @@ import {
   SignalClassifier,
   type Sensitivity,
   type SignalClassification,
-} from './signal-classifier';
+} from './signal-classifier.js';
 
 import {
   type GovernanceGate,
@@ -60,7 +60,7 @@ import {
   gateAdjustments,
   followThroughRate,
   bestSignalType,
-} from './governance';
+} from './governance.js';
 
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
