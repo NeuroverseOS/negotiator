@@ -1,14 +1,13 @@
 {
   "name": "neuroverseos-negotiator",
   "version": "1.0.0",
-  "description": "Negotiator — Real-time behavioral signal detection for MentraOS smart glasses. We don't detect lies. We detect when something doesn't add up.",
+  "description": "Negotiator \u2014 Real-time behavioral signal detection for MentraOS smart glasses. We don't detect lies. We detect when something doesn't add up.",
   "type": "module",
   "scripts": {
     "start": "tsx src/server.ts",
     "dev": "tsx watch src/server.ts",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "postinstall": "node -e \"try{const p=JSON.parse(require('fs').readFileSync('./node_modules/neuroverseos-governance/package.json','utf8'));delete p.exports;require('fs').writeFileSync('./node_modules/neuroverseos-governance/package.json',JSON.stringify(p,null,2))}catch(e){}\""
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@mentra/sdk": "3.0.0-hono.8",
