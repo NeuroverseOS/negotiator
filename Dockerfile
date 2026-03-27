@@ -3,7 +3,6 @@ RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json ./
 RUN bun install
-# Ensure governance package dist is built (bun may skip prepare scripts)
 RUN cd node_modules/neuroverseos-governance && bun install && bun run build || true
 COPY . .
 
