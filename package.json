@@ -1,6 +1,6 @@
 {
   "name": "neuroverseos-negotiator",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Negotiator \u2014 Real-time behavioral signal detection for MentraOS smart glasses. We don't detect lies. We detect when something doesn't add up.",
   "type": "module",
   "scripts": {
