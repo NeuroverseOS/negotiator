@@ -801,6 +801,83 @@ const port = Number(process.env.PORT) || 3002;
 
 await app.start();
 
+// ─── Webview (phone UI) ──────────────────────────────────────────────────────
+
+app.get('/webview', (c) => {
+  return c.html(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Negotiator</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: #e0e0e0; padding: 20px; min-height: 100vh; }
+    .header { text-align: center; padding: 30px 0 20px; }
+    .header h1 { font-size: 24px; font-weight: 600; color: #fff; }
+    .header p { font-size: 14px; color: #888; margin-top: 8px; font-style: italic; }
+    .card { background: #1a1a1a; border-radius: 12px; padding: 20px; margin: 16px 0; border: 1px solid #2a2a2a; }
+    .card h2 { font-size: 16px; color: #aaa; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; font-weight: 500; }
+    .signal { display: flex; align-items: baseline; gap: 8px; margin: 8px 0; }
+    .prefix { color: #4ade80; font-family: monospace; font-weight: bold; }
+    .signal-name { color: #ccc; font-size: 14px; }
+    .signal-desc { color: #888; font-size: 12px; }
+    .controls { margin-top: 8px; }
+    .controls p { color: #888; font-size: 13px; margin: 6px 0; }
+    .controls strong { color: #ccc; }
+    .status { text-align: center; padding: 20px; }
+    .status-dot { display: inline-block; width: 8px; height: 8px; background: #4ade80; border-radius: 50%; margin-right: 8px; }
+    .status span { color: #4ade80; font-size: 14px; }
+    .footer { text-align: center; padding: 30px 0; color: #555; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Negotiator</h1>
+    <p>"We don't detect lies. We detect when something doesn't add up."</p>
+  </div>
+
+  <div class="status">
+    <span class="status-dot"></span><span>Active — listening for signals</span>
+  </div>
+
+  <div class="card">
+    <h2>Signal Types</h2>
+    <div class="signal"><span class="prefix">~</span><span class="signal-name">Light</span><span class="signal-desc">— something to notice</span></div>
+    <div class="signal"><span class="prefix">~~</span><span class="signal-name">Medium</span><span class="signal-desc">— worth exploring</span></div>
+    <div class="signal"><span class="prefix">~~~</span><span class="signal-name">Strong</span><span class="signal-desc">— slow down, multiple things don't line up</span></div>
+  </div>
+
+  <div class="card">
+    <h2>Controls</h2>
+    <div class="controls">
+      <p><strong>Tap</strong> — get an on-demand analysis</p>
+      <p><strong>Tap again within 30s</strong> — deeper tactical follow-up</p>
+      <p><strong>Long press</strong> — dismiss a bad signal</p>
+      <p><strong>Say "negotiate"</strong> — trigger analysis by voice</p>
+      <p><strong>Say "new conversation"</strong> — reset for a new call</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>What It Detects</h2>
+    <div class="controls">
+      <p><strong>Inconsistency</strong> — details that change across tellings</p>
+      <p><strong>Cognitive Load</strong> — unusual effort on simple questions</p>
+      <p><strong>Deflection</strong> — answering a different question</p>
+      <p><strong>Emotional Mismatch</strong> — tone doesn't match content</p>
+      <p><strong>Overcompensation</strong> — excessive "honestly," repeating points</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    Negotiator by NeuroverseOS<br>
+    Signals are patterns, not proof.
+  </div>
+</body>
+</html>`);
+});
+
 Bun.serve({
   port,
   hostname: '0.0.0.0',
