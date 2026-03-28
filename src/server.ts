@@ -344,6 +344,8 @@ interface NegotiatorSession {
   /** Signal types from the last proactive insight (for effectiveness tracking) */
   lastSignalTypes: string[];
   outputMode: 'display' | 'audio' | 'both';
+  /** Current person being negotiated with (if identified) */
+  currentProfile: string | null;
   metrics: { activations: number; aiCalls: number; signalsSurfaced: number; followThroughs: number; dismissals: number; governanceBlocks: number; ambientSends: number; sessionStart: number; };
 }
 
@@ -419,6 +421,7 @@ class NegotiatorApp extends AppServer {
       lastWasProactive: false,
       lastSignalTypes: [],
       outputMode,
+      currentProfile: null,
       metrics: { activations: 0, aiCalls: 0, signalsSurfaced: 0, followThroughs: 0, dismissals: 0, governanceBlocks: 0, ambientSends: 0, sessionStart: Date.now() },
     };
     sessions.set(sessionId, state);
@@ -519,10 +522,37 @@ class NegotiatorApp extends AppServer {
         s.lastSignalText = '';
         s.lastWasProactive = false;
         s.lastSignalTypes = [];
+        s.currentProfile = null;
         const displayCheck = s.executor.evaluate('display_response', s.appContext);
         if (displayCheck.allowed) {
           await deliver(session, 'New conversation. Listening.', s.outputMode);
         }
+        return;
+      }
+
+      // ── Profile detection ─────────────────────────────────────────────
+      const profileMatch = NEGOTIATING_WITH_PATTERN.exec(userText);
+      if (profileMatch) {
+        const name = profileMatch[1].toLowerCase();
+        s.currentProfile = name;
+
+        // Load past signal history for this person
+        const profileKey = `profile_${name}`;
+        const pastData = await session.simpleStorage.get(profileKey);
+        let context = `Now tracking: ${name}.`;
+        if (pastData) {
+          try {
+            const history = JSON.parse(pastData);
+            const totalSignals = history.signals ?? 0;
+            const topPattern = history.topPattern ?? null;
+            if (totalSignals > 0) {
+              context = `${name} — ${totalSignals} signals from past sessions.`;
+              if (topPattern) context += ` Most common: ${topPattern}.`;
+            }
+          } catch { /* first time */ }
+        }
+
+        await deliver(session, context, s.outputMode);
         return;
       }
 
@@ -684,10 +714,15 @@ class NegotiatorApp extends AppServer {
 
     s.metrics.aiCalls++;
 
+    // Inject profile context if we know who the user is talking to
+    const profileContext = s.currentProfile
+      ? `[Context: The user is in a conversation with ${s.currentProfile}. Use any prior signal history to inform your analysis.] `
+      : '';
+
     const userMessage = ambientText
-      ? `[The user tapped for a negotiation read. Here's the recent conversation — analyze for behavioral signals and give a tactical insight.]\n${ambientText}`
+      ? `${profileContext}[The user tapped for a negotiation read. Here's the recent conversation — analyze for behavioral signals and give a tactical insight.]\n${ambientText}`
       : s.conversationHistory.length > 0
-        ? '[The user tapped for a negotiation read. Analyze the conversation so far.]'
+        ? `${profileContext}[The user tapped for a negotiation read. Analyze the conversation so far.]`
         : '[First activation. Give a brief negotiation principle to keep in mind.]';
 
     // ── Kernel: check user input for prompt injection ────────────────
@@ -805,6 +840,36 @@ class NegotiatorApp extends AppServer {
         }
 
         await saveJournal(s.appSession, s.journal);
+      }
+
+      // Persist profile data if a person was identified this session
+      if (s.currentProfile && s.metrics.signalsSurfaced > 0) {
+        const profileKey = `profile_${s.currentProfile}`;
+        try {
+          const existing = await s.appSession.simpleStorage.get(profileKey);
+          let profile = { signals: 0, sessions: 0, topPattern: null as string | null, patterns: {} as Record<string, number> };
+          if (existing) {
+            try { profile = JSON.parse(existing); } catch { /* corrupt, start fresh */ }
+          }
+          profile.signals += s.metrics.signalsSurfaced;
+          profile.sessions += 1;
+
+          // Track pattern frequency from this session's signal effectiveness
+          for (const [type, stats] of Object.entries(s.journal.signalEffectiveness)) {
+            profile.patterns[type] = (profile.patterns[type] ?? 0) + stats.surfaced;
+          }
+
+          // Find top pattern
+          let maxCount = 0;
+          for (const [type, count] of Object.entries(profile.patterns)) {
+            if (count > maxCount) { maxCount = count; profile.topPattern = type; }
+          }
+
+          await s.appSession.simpleStorage.set(profileKey, JSON.stringify(profile));
+          console.log(`[Negotiator] Saved profile for ${s.currentProfile}: ${profile.signals} total signals across ${profile.sessions} sessions`);
+        } catch (err) {
+          console.warn(`[Negotiator] Failed to save profile for ${s.currentProfile}:`, err instanceof Error ? err.message : err);
+        }
       }
 
       const ftRate = followThroughRate(s.journal);
