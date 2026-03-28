@@ -943,9 +943,10 @@ app.get('/webview', (c) => {
     <h2>Setup Required</h2>
     <p>Negotiator needs an AI API key to analyze conversations.</p>
     <div class="steps">
-      <p><strong>1.</strong> Tap the <strong>...</strong> menu (top right)</p>
+      <p><strong>1.</strong> Tap <strong style="background:#333;padding:4px 10px;border-radius:6px;border:1px solid #555;font-size:16px;">...</strong> at the top right of this screen</p>
       <p><strong>2.</strong> Go to <strong>Settings</strong></p>
       <p><strong>3.</strong> Enter your <strong>Anthropic</strong> or <strong>OpenAI</strong> API key</p>
+      <p><strong>4.</strong> Choose your output mode (display, audio, or both)</p>
     </div>
   </div>
 
@@ -975,6 +976,15 @@ app.get('/webview', (c) => {
       <p><strong>Deflection</strong> — answering a different question</p>
       <p><strong>Emotional Mismatch</strong> — tone doesn't match content</p>
       <p><strong>Overcompensation</strong> — excessive "honestly," repeating points</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>People Tracking</h2>
+    <div class="controls">
+      <p>Say <strong>"meeting with [name]"</strong> to track a person</p>
+      <p>Signal history is saved per person across sessions</p>
+      <p>Say <strong>"new conversation"</strong> to reset</p>
     </div>
   </div>
 
