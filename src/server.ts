@@ -364,11 +364,14 @@ async function deliver(session: AppSession, text: string, mode: 'display' | 'aud
     session.layouts.showTextWall(text);
   }
   if ((mode === 'audio' || mode === 'both') && canSpeak) {
-    await session.audio.speak(text);
+    // Fire and forget — don't await audio to avoid blocking/timeout
+    session.audio.speak(text).catch((err) => {
+      console.warn('[Negotiator] Audio speak failed:', err instanceof Error ? err.message : err);
+    });
   }
-  // Fallback: if user chose display but no display, try audio
+  // Fallback: if user chose display but no display, try audio (fire and forget)
   if (mode === 'display' && !canDisplay && canSpeak) {
-    await session.audio.speak(text);
+    session.audio.speak(text).catch(() => {});
   }
   // Fallback: if user chose audio but no speaker, try display
   if (mode === 'audio' && !canSpeak && canDisplay) {
@@ -427,13 +430,13 @@ class NegotiatorApp extends AppServer {
     sessions.set(sessionId, state);
 
     if (!aiProvider) {
-      await deliver(session, 'Negotiator: Add your AI API key in Settings.', outputMode);
+      deliver(session, 'Negotiator: Add your AI API key in Settings.', outputMode).catch(() => {});
       return;
     }
 
     const displayCheck = state.executor.evaluate('display_response', state.appContext);
     if (displayCheck.allowed) {
-      await deliver(session, `Negotiator active. ${sensitivity} sensitivity.`, outputMode);
+      deliver(session, `Negotiator active. ${sensitivity} sensitivity.`, outputMode).catch(() => {});
     }
 
     // ── Button Events ────────────────────────────────────────────────────
