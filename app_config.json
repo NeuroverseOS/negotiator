@@ -36,7 +36,7 @@
         { "label": "Audio only", "value": "audio" },
         { "label": "Both display and audio", "value": "both" }
       ],
-      "defaultValue": "display"
+      "defaultValue": "both"
     },
     {
       "type": "group",
@@ -77,7 +77,7 @@
       "key": "ambient_context",
       "type": "toggle",
       "label": "Enable Ambient Listening",
-      "defaultValue": false
+      "defaultValue": true
     },
     {
       "key": "ambient_bystander_ack",
