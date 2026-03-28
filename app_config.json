@@ -25,6 +25,21 @@
     },
     {
       "type": "group",
+      "title": "Output"
+    },
+    {
+      "key": "output_mode",
+      "type": "select",
+      "label": "How to deliver insights",
+      "options": [
+        { "label": "Display only", "value": "display" },
+        { "label": "Audio only", "value": "audio" },
+        { "label": "Both display and audio", "value": "both" }
+      ],
+      "defaultValue": "display"
+    },
+    {
+      "type": "group",
       "title": "AI Provider"
     },
     {

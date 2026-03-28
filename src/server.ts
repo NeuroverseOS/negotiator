@@ -343,10 +343,36 @@ interface NegotiatorSession {
   lastWasProactive: boolean;
   /** Signal types from the last proactive insight (for effectiveness tracking) */
   lastSignalTypes: string[];
+  outputMode: 'display' | 'audio' | 'both';
   metrics: { activations: number; aiCalls: number; signalsSurfaced: number; followThroughs: number; dismissals: number; governanceBlocks: number; ambientSends: number; sessionStart: number; };
 }
 
 const sessions = new Map<string, NegotiatorSession>();
+
+// ─── Output Helper ───────────────────────────────────────────────────────────
+// Delivers insights via display, audio, or both based on user preference
+// and hardware capabilities.
+
+async function deliver(session: AppSession, text: string, mode: 'display' | 'audio' | 'both'): Promise<void> {
+  const caps = session.capabilities;
+  const canDisplay = caps?.hasDisplay ?? false;
+  const canSpeak = caps?.hasSpeaker ?? false;
+
+  if ((mode === 'display' || mode === 'both') && canDisplay) {
+    session.layouts.showTextWall(text);
+  }
+  if ((mode === 'audio' || mode === 'both') && canSpeak) {
+    await session.audio.speak(text);
+  }
+  // Fallback: if user chose display but no display, try audio
+  if (mode === 'display' && !canDisplay && canSpeak) {
+    await session.audio.speak(text);
+  }
+  // Fallback: if user chose audio but no speaker, try display
+  if (mode === 'audio' && !canSpeak && canDisplay) {
+    session.layouts.showTextWall(text);
+  }
+}
 
 // ─── The App ─────────────────────────────────────────────────────────────────
 
@@ -363,6 +389,7 @@ class NegotiatorApp extends AppServer {
     const ambientEnabled = session.settings.get<boolean>('ambient_context', false);
     const ambientBystanderAck = session.settings.get<boolean>('ambient_bystander_ack', false);
     const ambientBufferSeconds = session.settings.get<number>('ambient_buffer_duration', DEFAULT_AMBIENT_BUFFER_SECONDS);
+    const outputMode = session.settings.get<string>('output_mode', 'display') as 'display' | 'audio' | 'both';
 
     let aiProvider: AIProvider | null = null;
     if (aiApiKey) {
@@ -391,18 +418,19 @@ class NegotiatorApp extends AppServer {
       governance: { sessionTrust: 100, gate: 'ACTIVE' },
       lastWasProactive: false,
       lastSignalTypes: [],
+      outputMode,
       metrics: { activations: 0, aiCalls: 0, signalsSurfaced: 0, followThroughs: 0, dismissals: 0, governanceBlocks: 0, ambientSends: 0, sessionStart: Date.now() },
     };
     sessions.set(sessionId, state);
 
     if (!aiProvider) {
-      session.layouts.showDoubleTextWall('Negotiator', 'Add your AI API key in Settings.');
+      await deliver(session, 'Negotiator: Add your AI API key in Settings.', outputMode);
       return;
     }
 
     const displayCheck = state.executor.evaluate('display_response', state.appContext);
     if (displayCheck.allowed) {
-      session.layouts.showTextWall(`Negotiator active. ${sensitivity} sensitivity.`);
+      await deliver(session, `Negotiator active. ${sensitivity} sensitivity.`, outputMode);
     }
 
     // ── Button Events ────────────────────────────────────────────────────
@@ -478,7 +506,7 @@ class NegotiatorApp extends AppServer {
         ];
         const step = s.metrics.activations % helpSteps.length;
         const displayCheck = s.executor.evaluate('display_response', s.appContext);
-        if (displayCheck.allowed) session.layouts.showTextWall(helpSteps[step]);
+        if (displayCheck.allowed) await deliver(session, helpSteps[step], s.outputMode);
         return;
       }
 
@@ -493,7 +521,7 @@ class NegotiatorApp extends AppServer {
         s.lastSignalTypes = [];
         const displayCheck = s.executor.evaluate('display_response', s.appContext);
         if (displayCheck.allowed) {
-          session.layouts.showTextWall('New conversation. Listening.');
+          await deliver(session, 'New conversation. Listening.', s.outputMode);
         }
         return;
       }
@@ -596,7 +624,7 @@ class NegotiatorApp extends AppServer {
 
         const displayCheck = s.executor.evaluate('display_response', s.appContext);
         if (displayCheck.allowed) {
-          session.layouts.showTextWall(display);
+          await deliver(session, display, s.outputMode);
         }
 
         s.classifier.recordInsight(display);
@@ -685,7 +713,7 @@ class NegotiatorApp extends AppServer {
         }
 
         const displayCheck = s.executor.evaluate('display_response', s.appContext);
-        if (displayCheck.allowed) session.layouts.showTextWall(response.text);
+        if (displayCheck.allowed) await deliver(session, response.text, s.outputMode);
 
         s.conversationHistory.push({ role: 'user', content: userMessage }, { role: 'assistant', content: response.text });
         if (s.conversationHistory.length > 6) s.conversationHistory = s.conversationHistory.slice(-6);
@@ -694,7 +722,7 @@ class NegotiatorApp extends AppServer {
       }
     } catch (err) {
       const errCheck = s.executor.evaluate('display_response', s.appContext);
-      if (errCheck.allowed) session.layouts.showTextWall('Something went wrong. Try again.');
+      if (errCheck.allowed) await deliver(session, 'Something went wrong. Try again.', s.outputMode);
     }
   }
 
@@ -725,14 +753,14 @@ class NegotiatorApp extends AppServer {
         }
 
         const displayCheck = s.executor.evaluate('display_response', s.appContext);
-        if (displayCheck.allowed) session.layouts.showTextWall(response.text);
+        if (displayCheck.allowed) await deliver(session, response.text, s.outputMode);
         s.conversationHistory.push({ role: 'user', content: '[follow-up]' }, { role: 'assistant', content: response.text });
         if (s.conversationHistory.length > 6) s.conversationHistory = s.conversationHistory.slice(-6);
         s.lastSignalTime = Date.now();
       }
     } catch (err) {
       const errCheck = s.executor.evaluate('display_response', s.appContext);
-      if (errCheck.allowed) session.layouts.showTextWall('Something went wrong. Try again.');
+      if (errCheck.allowed) await deliver(session, 'Something went wrong. Try again.', s.outputMode);
     }
   }
 
@@ -751,7 +779,7 @@ class NegotiatorApp extends AppServer {
       { role: 'assistant', content: 'Noted. Raising threshold.' },
     );
     const displayCheck = s.executor.evaluate('display_response', s.appContext);
-    if (displayCheck.allowed) session.layouts.showTextWall('Got it. Recalibrating.');
+    if (displayCheck.allowed) await deliver(session, 'Got it. Recalibrating.', s.outputMode);
   }
 
   // ── Cleanup ────────────────────────────────────────────────────────────
