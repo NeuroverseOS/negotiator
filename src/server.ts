@@ -766,7 +766,7 @@ class NegotiatorApp extends AppServer {
 
   // ── Dismiss ────────────────────────────────────────────────────────────
 
-  private dismiss(s: NegotiatorSession, session: AppSession): void {
+  private async dismiss(s: NegotiatorSession, session: AppSession): Promise<void> {
     s.metrics.dismissals++;
     s.lastSignalTime = 0;
 
