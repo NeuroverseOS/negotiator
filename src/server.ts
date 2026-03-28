@@ -65,7 +65,6 @@ import {
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { createServer } from 'http';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -798,26 +797,14 @@ const app = new NegotiatorApp({
   port: Number(process.env.PORT) || 3002,
 });
 
-app.start();
+const port = Number(process.env.PORT) || 3002;
 
-// ─── Health Check ─────────────────────────────────────────────────────────────
-// Railway probes GET /health on the main port. We spin up a minimal HTTP server
-// on HEALTH_PORT (default 3003) that responds 200 {"status":"ok"}, keeping it
-// completely independent of AppServer internals.
+await app.start();
 
-const HEALTH_PORT = Number(process.env.HEALTH_PORT) || 3003;
-
-createServer((req, res) => {
-  if (req.method === 'GET' && req.url === '/health') {
-    const body = JSON.stringify({ status: 'ok' });
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) });
-    res.end(body);
-  } else {
-    res.writeHead(404);
-    res.end();
-  }
-}).listen(HEALTH_PORT, () => {
-  console.log(`[Negotiator] Health check listening on port ${HEALTH_PORT}`);
+Bun.serve({
+  port,
+  hostname: '0.0.0.0',
+  fetch: app.fetch,
 });
 
-console.log(`[Negotiator] Running on port ${Number(process.env.PORT) || 3002}`);
+console.log(`[Negotiator] Running on port ${port}`);
