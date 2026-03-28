@@ -828,6 +828,11 @@ app.get('/webview', (c) => {
     .status { text-align: center; padding: 20px; }
     .status-dot { display: inline-block; width: 8px; height: 8px; background: #4ade80; border-radius: 50%; margin-right: 8px; }
     .status span { color: #4ade80; font-size: 14px; }
+    .setup { background: #1a1a0a; border: 1px solid #4a4a00; border-radius: 12px; padding: 16px 20px; margin: 16px 0; }
+    .setup h2 { font-size: 14px; color: #fbbf24; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+    .setup p { color: #aaa; font-size: 13px; line-height: 1.5; }
+    .setup .steps { color: #ccc; font-size: 13px; margin-top: 8px; }
+    .setup .steps strong { color: #fbbf24; }
     .footer { text-align: center; padding: 30px 0; color: #555; font-size: 12px; }
   </style>
 </head>
@@ -839,6 +844,16 @@ app.get('/webview', (c) => {
 
   <div class="status">
     <span class="status-dot"></span><span>Active — listening for signals</span>
+  </div>
+
+  <div class="setup">
+    <h2>Setup Required</h2>
+    <p>Negotiator needs an AI API key to analyze conversations.</p>
+    <div class="steps">
+      <p><strong>1.</strong> Tap the <strong>...</strong> menu (top right)</p>
+      <p><strong>2.</strong> Go to <strong>Settings</strong></p>
+      <p><strong>3.</strong> Enter your <strong>Anthropic</strong> or <strong>OpenAI</strong> API key</p>
+    </div>
   </div>
 
   <div class="card">
