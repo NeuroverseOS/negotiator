@@ -80,17 +80,20 @@ const RECENCY_BOOST_SECONDS = 15;
 
 const MIN_CLASSIFY_WORDS = 8;
 
-/** Pattern to detect help request */
-const HELP_PATTERN = /^(?:help|show\s+me\s+commands|how\s+does\s+this\s+work)\b/i;
+/** Pattern to detect help request — "Lincoln help" */
+const HELP_PATTERN = /\blincoln\s+help\b/i;
 
-/** Pattern to detect new conversation / reset */
-const RESET_PATTERN = /\b(?:new\s+(?:conversation|chat|call|meeting)|reset|start\s+over|clear)\b/i;
+/** Pattern to detect new conversation / reset — "Lincoln reset" or "Lincoln new" */
+const RESET_PATTERN = /\blincoln\s+(?:reset|new|clear|start\s+over)\b/i;
 
 /** Pattern to detect "negotiating with [person]" for profile lookup */
-const NEGOTIATING_WITH_PATTERN = /\b(?:negotiating\s+with|meeting\s+with|talking\s+to|call\s+with)\s+(\w+)\b/i;
+const NEGOTIATING_WITH_PATTERN = /\b(?:negotiating\s+with|meeting\s+with|talking\s+to|call\s+with)\s+(.+?)(?:\.|,|$)/i;
 
-/** Trigger word for on-demand analysis */
-const NEGOTIATE_TRIGGER = /\b(?:negotiate|read\s+(?:the\s+)?room|what\s+do\s+you\s+see)\b/i;
+/** Trigger word for on-demand analysis — "Lincoln negotiate" or "Lincoln read" */
+const NEGOTIATE_TRIGGER = /\blincoln\s+(?:negotiate|read|analyze|check)\b/i;
+
+/** Trigger word to dismiss a bad signal — "Lincoln wrong" or "Lincoln wrong read" */
+const DISMISS_TRIGGER = /\blincoln\s+(?:wrong|bad|dismiss|wrong\s+read|not\s+that)\b/i;
 
 const AI_MODELS: Record<string, { provider: 'openai' | 'anthropic'; model: string }> = {
   'auto': { provider: 'anthropic', model: 'claude-haiku-4-5-20251001' },
@@ -580,9 +583,24 @@ class NegotiatorApp extends AppServer {
         }
       }
 
-      // Voice trigger
+      // Voice trigger — "Lincoln negotiate"
       if (NEGOTIATE_TRIGGER.test(userText)) {
         await this.onDemandAnalysis(s, session, sessionId);
+        return;
+      }
+
+      // Voice dismiss — "Lincoln wrong" or "Lincoln wrong read"
+      if (DISMISS_TRIGGER.test(userText)) {
+        if (s.lastWasProactive) {
+          for (const type of s.lastSignalTypes) {
+            const eff = s.journal.signalEffectiveness[type] ?? { surfaced: 0, acted: 0, dismissed: 0 };
+            eff.dismissed++;
+            s.journal.signalEffectiveness[type] = eff;
+          }
+          s.journal.recentSignals.push(...s.lastSignalTypes.map(t => ({ type: t, acted: false, dismissed: true })));
+          s.lastWasProactive = false;
+        }
+        await this.dismiss(s, session);
         return;
       }
 
@@ -1011,11 +1029,12 @@ app.get('/webview', (c) => {
     <div class="controls">
       <p><strong>Tap side panel</strong> — get an on-demand analysis</p>
       <p><strong>Tap again within 30s</strong> — deeper tactical follow-up</p>
-      <p><strong>Double tap side panel</strong> — dismiss a bad signal</p>
-      <p><strong>Swipe forward</strong> — analyze (same as tap)</p>
-      <p><strong>Swipe backward</strong> — dismiss (same as double tap)</p>
-      <p><strong>Say "negotiate"</strong> — trigger analysis by voice</p>
-      <p><strong>Say "new conversation"</strong> — reset for a new call</p>
+      <p><strong>Double tap</strong> — dismiss a bad signal</p>
+      <p><strong>"Lincoln negotiate"</strong> — analyze by voice</p>
+      <p><strong>"Lincoln wrong"</strong> — dismiss a bad signal by voice</p>
+      <p><strong>"Lincoln help"</strong> — show quick tips</p>
+      <p><strong>"Lincoln reset"</strong> — start a new conversation</p>
+      <p style="color:#555;font-size:11px;margin-top:12px;">All voice commands start with "Lincoln" — named after President Lincoln, one of history's greatest negotiators.</p>
     </div>
   </div>
 
