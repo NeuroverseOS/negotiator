@@ -76,7 +76,7 @@
     {
       "key": "contacts",
       "type": "text",
-      "label": "Names to track (comma separated)",
+      "label": "Names to track (comma separated, use full names: John Smith, Sarah Jones)",
       "defaultValue": ""
     },
     {

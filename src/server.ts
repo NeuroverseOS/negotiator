@@ -346,7 +346,7 @@ interface NegotiatorSession {
   outputMode: 'display' | 'audio' | 'both';
   /** Current person being negotiated with (if identified) */
   currentProfile: string | null;
-  knownContacts: string[];
+  knownContacts: Array<{ full: string; first: string }>;
   metrics: { activations: number; aiCalls: number; signalsSurfaced: number; followThroughs: number; dismissals: number; governanceBlocks: number; ambientSends: number; sessionStart: number; };
 }
 
@@ -397,10 +397,11 @@ class NegotiatorApp extends AppServer {
     const ambientBufferSeconds = session.settings.get<number>('ambient_buffer_duration', DEFAULT_AMBIENT_BUFFER_SECONDS);
     const outputMode = session.settings.get<string>('output_mode', 'display') as 'display' | 'audio' | 'both';
     const contactsRaw = session.settings.get<string>('contacts', '');
-    const knownContacts = contactsRaw
+    const knownContacts: Array<{ full: string; first: string }> = contactsRaw
       .split(',')
-      .map(n => n.trim().toLowerCase())
-      .filter(n => n.length > 0);
+      .map(n => n.trim())
+      .filter(n => n.length > 0)
+      .map(n => ({ full: n.toLowerCase(), first: n.split(/\s+/)[0].toLowerCase() }));
 
     let aiProvider: AIProvider | null = null;
     if (aiApiKey) {
@@ -542,6 +543,15 @@ class NegotiatorApp extends AppServer {
       }
 
       // ── Profile detection ─────────────────────────────────────────────
+      // Check if user is responding to a "Which [name]?" clarification
+      if (!s.currentProfile && s.knownContacts.length > 0) {
+        const clarificationMatch = s.knownContacts.find(c => userText.toLowerCase().includes(c.full));
+        if (clarificationMatch && s.conversationHistory.some(h => h.content.includes('Which '))) {
+          await this.activateProfile(clarificationMatch.full, s, session);
+          return;
+        }
+      }
+
       // Check explicit trigger: "meeting with John", "talking to Sarah"
       const profileMatch = NEGOTIATING_WITH_PATTERN.exec(userText);
       if (profileMatch) {
@@ -552,10 +562,20 @@ class NegotiatorApp extends AppServer {
       // Auto-detect known contacts mentioned in conversation
       if (!s.currentProfile && s.knownContacts.length > 0) {
         const lower = userText.toLowerCase();
-        for (const contact of s.knownContacts) {
-          if (lower.includes(contact)) {
-            await this.activateProfile(contact, s, session);
-            break;
+
+        // First try full name match (most specific)
+        const fullMatch = s.knownContacts.find(c => lower.includes(c.full));
+        if (fullMatch) {
+          await this.activateProfile(fullMatch.full, s, session);
+        } else {
+          // Try first name — but check for ambiguity
+          const firstMatches = s.knownContacts.filter(c => lower.includes(c.first));
+          if (firstMatches.length === 1) {
+            await this.activateProfile(firstMatches[0].full, s, session);
+          } else if (firstMatches.length > 1) {
+            // Ambiguous — ask for clarification
+            const options = firstMatches.map(c => c.full).join(', ');
+            deliver(session, `Which ${firstMatches[0].first}? ${options}`, s.outputMode).catch(() => {});
           }
         }
       }
