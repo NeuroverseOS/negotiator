@@ -27,7 +27,7 @@
  */
 
 import { AppServer } from '@mentra/sdk';
-import type { AppSession, ButtonPress, TranscriptionData } from '@mentra/sdk';
+import type { AppSession, TranscriptionData } from '@mentra/sdk';
 
 import {
   MentraGovernedExecutor,
@@ -439,22 +439,24 @@ class NegotiatorApp extends AppServer {
       deliver(session, `Negotiator active. ${sensitivity} sensitivity.`, outputMode).catch(() => {});
     }
 
-    // ── Button Events ────────────────────────────────────────────────────
-    session.events.onButtonPress((data: ButtonPress) => {
+    // ── Touch Events (side panel) ──────────────────────────────────────
+    // Single tap = on-demand analysis or follow-up
+    // Double tap = dismiss a bad signal
+    session.events.onTouchEvent((data) => {
       const s = sessions.get(sessionId);
       if (!s || !s.aiProvider) return;
 
-      if (data.pressType === 'short') {
+      const gesture = data.gesture ?? data.type ?? '';
+
+      // Single tap or forward swipe = analyze / follow-up
+      if (gesture === 'single_tap' || gesture === 'forward_swipe' || gesture === 'tap') {
         const now = Date.now();
         const inWindow = s.lastSignalTime > 0 && (now - s.lastSignalTime) < FOLLOW_UP_WINDOW_MS;
 
         // ── Follow-through tracking ────────────────────────────────────
-        // If the user taps after a proactive signal, they ACTED on it.
-        // This is the closed feedback loop.
         if (inWindow && s.lastWasProactive) {
           s.metrics.followThroughs++;
           s.journal.totalFollowThroughs++;
-          // Record effectiveness per signal type
           for (const type of s.lastSignalTypes) {
             const eff = s.journal.signalEffectiveness[type] ?? { surfaced: 0, acted: 0, dismissed: 0 };
             eff.acted++;
@@ -471,9 +473,8 @@ class NegotiatorApp extends AppServer {
         }
       }
 
-      if (data.pressType === 'long') {
-        // ── Dismiss tracking ───────────────────────────────────────────
-        // If the user dismisses after a proactive signal, they rejected it.
+      // Double tap or backward swipe = dismiss
+      if (gesture === 'double_tap' || gesture === 'backward_swipe') {
         if (s.lastWasProactive) {
           for (const type of s.lastSignalTypes) {
             const eff = s.journal.signalEffectiveness[type] ?? { surfaced: 0, acted: 0, dismissed: 0 };
@@ -963,9 +964,11 @@ app.get('/webview', (c) => {
   <div class="card">
     <h2>Controls</h2>
     <div class="controls">
-      <p><strong>Tap</strong> — get an on-demand analysis</p>
+      <p><strong>Tap side panel</strong> — get an on-demand analysis</p>
       <p><strong>Tap again within 30s</strong> — deeper tactical follow-up</p>
-      <p><strong>Long press</strong> — dismiss a bad signal</p>
+      <p><strong>Double tap side panel</strong> — dismiss a bad signal</p>
+      <p><strong>Swipe forward</strong> — analyze (same as tap)</p>
+      <p><strong>Swipe backward</strong> — dismiss (same as double tap)</p>
       <p><strong>Say "negotiate"</strong> — trigger analysis by voice</p>
       <p><strong>Say "new conversation"</strong> — reset for a new call</p>
     </div>
