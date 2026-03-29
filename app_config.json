@@ -71,6 +71,16 @@
     },
     {
       "type": "group",
+      "title": "People"
+    },
+    {
+      "key": "contacts",
+      "type": "text",
+      "label": "Names to track (comma separated)",
+      "defaultValue": ""
+    },
+    {
+      "type": "group",
       "title": "Ambient Context"
     },
     {

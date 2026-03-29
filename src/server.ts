@@ -346,6 +346,7 @@ interface NegotiatorSession {
   outputMode: 'display' | 'audio' | 'both';
   /** Current person being negotiated with (if identified) */
   currentProfile: string | null;
+  knownContacts: string[];
   metrics: { activations: number; aiCalls: number; signalsSurfaced: number; followThroughs: number; dismissals: number; governanceBlocks: number; ambientSends: number; sessionStart: number; };
 }
 
@@ -395,6 +396,11 @@ class NegotiatorApp extends AppServer {
     const ambientBystanderAck = session.settings.get<boolean>('ambient_bystander_ack', false);
     const ambientBufferSeconds = session.settings.get<number>('ambient_buffer_duration', DEFAULT_AMBIENT_BUFFER_SECONDS);
     const outputMode = session.settings.get<string>('output_mode', 'display') as 'display' | 'audio' | 'both';
+    const contactsRaw = session.settings.get<string>('contacts', '');
+    const knownContacts = contactsRaw
+      .split(',')
+      .map(n => n.trim().toLowerCase())
+      .filter(n => n.length > 0);
 
     let aiProvider: AIProvider | null = null;
     if (aiApiKey) {
@@ -425,6 +431,7 @@ class NegotiatorApp extends AppServer {
       lastSignalTypes: [],
       outputMode,
       currentProfile: null,
+      knownContacts,
       metrics: { activations: 0, aiCalls: 0, signalsSurfaced: 0, followThroughs: 0, dismissals: 0, governanceBlocks: 0, ambientSends: 0, sessionStart: Date.now() },
     };
     sessions.set(sessionId, state);
@@ -535,29 +542,22 @@ class NegotiatorApp extends AppServer {
       }
 
       // ── Profile detection ─────────────────────────────────────────────
+      // Check explicit trigger: "meeting with John", "talking to Sarah"
       const profileMatch = NEGOTIATING_WITH_PATTERN.exec(userText);
       if (profileMatch) {
-        const name = profileMatch[1].toLowerCase();
-        s.currentProfile = name;
-
-        // Load past signal history for this person
-        const profileKey = `profile_${name}`;
-        const pastData = await session.simpleStorage.get(profileKey);
-        let context = `Now tracking: ${name}.`;
-        if (pastData) {
-          try {
-            const history = JSON.parse(pastData);
-            const totalSignals = history.signals ?? 0;
-            const topPattern = history.topPattern ?? null;
-            if (totalSignals > 0) {
-              context = `${name} — ${totalSignals} signals from past sessions.`;
-              if (topPattern) context += ` Most common: ${topPattern}.`;
-            }
-          } catch { /* first time */ }
-        }
-
-        await deliver(session, context, s.outputMode);
+        await this.activateProfile(profileMatch[1], s, session);
         return;
+      }
+
+      // Auto-detect known contacts mentioned in conversation
+      if (!s.currentProfile && s.knownContacts.length > 0) {
+        const lower = userText.toLowerCase();
+        for (const contact of s.knownContacts) {
+          if (lower.includes(contact)) {
+            await this.activateProfile(contact, s, session);
+            break;
+          }
+        }
       }
 
       // Voice trigger
@@ -803,6 +803,31 @@ class NegotiatorApp extends AppServer {
     }
   }
 
+  // ── Profile Activation ──────────────────────────────────────────────
+
+  private async activateProfile(name: string, s: NegotiatorSession, session: AppSession): Promise<void> {
+    const cleanName = name.trim().toLowerCase();
+    s.currentProfile = cleanName;
+
+    const profileKey = `profile_${cleanName}`;
+    const pastData = await session.simpleStorage.get(profileKey);
+    let context = `Now tracking: ${cleanName}.`;
+    if (pastData) {
+      try {
+        const history = JSON.parse(pastData);
+        const totalSignals = history.signals ?? 0;
+        const topPattern = history.topPattern ?? null;
+        if (totalSignals > 0) {
+          context = `${cleanName} — ${totalSignals} signals from past sessions.`;
+          if (topPattern) context += ` Most common: ${topPattern}.`;
+        }
+      } catch { /* first time */ }
+    }
+
+    deliver(session, context, s.outputMode).catch(() => {});
+    console.log(`[Negotiator] Profile activated: ${cleanName}`);
+  }
+
   // ── Dismiss ────────────────────────────────────────────────────────────
 
   private async dismiss(s: NegotiatorSession, session: AppSession): Promise<void> {
@@ -988,7 +1013,8 @@ app.get('/webview', (c) => {
   <div class="card">
     <h2>People Tracking</h2>
     <div class="controls">
-      <p>Say <strong>"meeting with [name]"</strong> to track a person</p>
+      <p>Add names in <strong>Settings > People</strong> for auto-detection</p>
+      <p>Or say <strong>"meeting with [name]"</strong> to track manually</p>
       <p>Signal history is saved per person across sessions</p>
       <p>Say <strong>"new conversation"</strong> to reset</p>
     </div>
